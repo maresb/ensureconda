@@ -38,23 +38,22 @@ func InstallMicromamba() (string, error) {
 
 type AnacondaPkgAttr struct {
 	Subdir      string `json:"subdir"`
-	Version     string `json:"version"`
 	BuildNumber int32  `json:"build_number"`
 	Timestamp   uint64 `json:"timestamp"`
-	SourceUrl   string `json:"source_url"`
-	Md5         string `json:"md5"`
 }
 
 type AnacondaPkg struct {
-	Size  uint32          `json:"size"`
-	Attrs AnacondaPkgAttr `json:"attrs"`
-	Type  string          `json:"type"`
+	Size        uint32          `json:"size"`
+	Attrs       AnacondaPkgAttr `json:"attrs"`
+	Type        string          `json:"type"`
+	Version     string          `json:"version"`
+	DownloadUrl string          `json:"download_url"`
 }
 
-type AnacondaPkgAttrs []AnacondaPkgAttr
+type AnacondaPkgs []AnacondaPkg
 
-func (a AnacondaPkgAttrs) Len() int { return len(a) }
-func (a AnacondaPkgAttrs) Less(i, j int) bool {
+func (a AnacondaPkgs) Len() int { return len(a) }
+func (a AnacondaPkgs) Less(i, j int) bool {
 	versioni, _ := version.NewVersion(a[i].Version)
 	versionj, _ := version.NewVersion(a[j].Version)
 	if versioni.LessThan(versionj) {
@@ -62,16 +61,16 @@ func (a AnacondaPkgAttrs) Less(i, j int) bool {
 	} else if versionj.LessThan(versioni) {
 		return false
 	} else {
-		if a[i].BuildNumber < a[j].BuildNumber {
+		if a[i].Attrs.BuildNumber < a[j].Attrs.BuildNumber {
 			return true
-		} else if a[j].BuildNumber < a[i].BuildNumber {
+		} else if a[j].Attrs.BuildNumber < a[i].Attrs.BuildNumber {
 			return false
 		} else {
-			return a[i].Timestamp < a[j].Timestamp
+			return a[i].Attrs.Timestamp < a[j].Attrs.Timestamp
 		}
 	}
 }
-func (a AnacondaPkgAttrs) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a AnacondaPkgs) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
 func InstallCondaStandalone() (string, error) {
 	// Get the most recent conda-standalone
@@ -100,18 +99,22 @@ func InstallCondaStandalone() (string, error) {
 		panic(err.Error())
 	}
 
-	var candidates = make([]AnacondaPkgAttr, 0)
+	var candidates = make([]AnacondaPkg, 0)
 	for _, datum := range data {
 		if datum.Attrs.Subdir == subdir {
-			candidates = append(candidates, datum.Attrs)
+			candidates = append(candidates, datum)
 		}
 	}
-	sort.Sort(AnacondaPkgAttrs(candidates))
+	sort.Sort(AnacondaPkgs(candidates))
 
+	if len(candidates) == 0 {
+		return "", errors.New("No conda-standalone found for " + subdir)
+	}
 	chosen := candidates[len(candidates)-1]
 
+	downloadUrl := "https:" + chosen.DownloadUrl
 	installedExe, err := downloadAndUnpackCondaTarBz2(
-		chosen.SourceUrl, map[string]string{
+		downloadUrl, map[string]string{
 			"standalone_conda/conda.exe": targetExeFilename("conda_standalone"),
 		})
 

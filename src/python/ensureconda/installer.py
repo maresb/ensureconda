@@ -8,7 +8,7 @@ import time
 import uuid
 from contextlib import closing
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Iterator, Optional
+from typing import IO, TYPE_CHECKING, Iterator, NamedTuple, Optional
 
 import filelock
 import requests
@@ -20,6 +20,28 @@ from ensureconda.resolve import is_windows, platform_subdir, site_path
 
 if TYPE_CHECKING:
     from _typeshed import StrPath
+
+
+class AnacondaPkgAttr(NamedTuple):
+    """Inner for data from Anaconda API
+
+    <https://api.anaconda.org/package/anaconda/conda-standalone/files>
+    <https://api.anaconda.org/package/conda-forge/conda-standalone/files>
+    """
+
+    subdir: str
+    build_number: int
+    timestamp: int
+
+
+class AnacondaPkg(NamedTuple):
+    """Outer model for data from Anaconda API"""
+
+    size: int
+    attrs: AnacondaPkgAttr
+    type: str
+    version: str
+    download_url: str
 
 
 def request_url_with_retry(url: str) -> requests.Response:
@@ -87,20 +109,33 @@ def install_conda_exe() -> Optional[Path]:
 
     candidates = []
     for file_info in resp.json():
-        if file_info["attrs"]["subdir"] == subdir:
-            info = {**file_info, **file_info["attrs"]}
+        info_attrs = AnacondaPkgAttr(
+            subdir=file_info["attrs"]["subdir"],
+            build_number=file_info["attrs"]["build_number"],
+            timestamp=file_info["attrs"]["timestamp"],
+        )
+        info = AnacondaPkg(
+            size=file_info["size"],
+            attrs=info_attrs,
+            type=file_info["type"],
+            version=file_info["version"],
+            download_url=file_info["download_url"],
+        )
+        if info.attrs.subdir == subdir:
             candidates.append(info)
 
     candidates.sort(
-        key=lambda attrs: (
-            Version(attrs["version"]),
-            attrs["build_number"],
-            attrs["timestamp"],
+        key=lambda info: (
+            Version(info.version),
+            info.attrs.build_number,
+            info.attrs.timestamp,
         )
     )
+    if len(candidates) == 0:
+        raise RuntimeError(f"No conda-standalone package found for {subdir}")
 
     chosen = candidates[-1]
-    url = "https:" + chosen["download_url"]
+    url = "https:" + chosen.download_url
     path_to_written_executable = stream_conda_executable(url)
     return path_to_written_executable
 
