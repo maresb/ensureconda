@@ -199,11 +199,15 @@ def test_locally_install(tmp_path, monkeypatch):
     ids=["no-environment-var", "non-existent-channel", "anaconda", "conda-forge"],
 )
 def test_non_existent_channel(
+    can_i_docker,
     docker_client: docker.client.DockerClient,
     ensureconda_container,
     environment,
     expected_status,
 ):
+    if not can_i_docker:
+        raise pytest.skip("Docker not available")
+
     container_inst: docker.models.containers.Container = docker_client.containers.run(
         ensureconda_container,
         detach=True,
