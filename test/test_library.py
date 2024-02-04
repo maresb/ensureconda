@@ -35,7 +35,9 @@ def docker_client(can_i_docker) -> docker.client.DockerClient:
 
 
 @pytest.fixture(scope="session")
-def ensureconda_container(can_i_docker, docker_client: docker.client.DockerClient):
+def ensureconda_python_container(
+    can_i_docker, docker_client: docker.client.DockerClient
+):
     if can_i_docker:
         test_root = pathlib.Path(__file__).parent
         root = test_root.parent
@@ -50,7 +52,9 @@ def ensureconda_container(can_i_docker, docker_client: docker.client.DockerClien
 
 
 @pytest.fixture(scope="session")
-def ensureconda_container_full(can_i_docker, docker_client: docker.client.DockerClient):
+def ensureconda_python_container_full(
+    can_i_docker, docker_client: docker.client.DockerClient
+):
     if can_i_docker:
         test_root = pathlib.Path(__file__).parent
         root = test_root.parent
@@ -113,12 +117,12 @@ def test_ensure_simple(
     expected: str,
     can_i_docker,
     docker_client: docker.client.DockerClient,
-    ensureconda_container,
+    ensureconda_python_container,
 ):
     if not can_i_docker:
         raise pytest.skip("Docker not available")
 
-    _run_container_test(args, docker_client, expected, ensureconda_container)
+    _run_container_test(args, docker_client, expected, ensureconda_python_container)
 
 
 @pytest.mark.parametrize(
@@ -138,13 +142,15 @@ def test_ensure_full(
     args: List[str],
     expected: str,
     docker_client: docker.client.DockerClient,
-    ensureconda_container_full,
+    ensureconda_python_container_full,
     can_i_docker,
 ):
     if not can_i_docker:
         raise pytest.skip("Docker not available")
 
-    _run_container_test(args, docker_client, expected, ensureconda_container_full)
+    _run_container_test(
+        args, docker_client, expected, ensureconda_python_container_full
+    )
 
 
 def test_locally_install(tmp_path, monkeypatch):
@@ -201,7 +207,7 @@ def test_locally_install(tmp_path, monkeypatch):
 def test_non_existent_channel(
     can_i_docker,
     docker_client: docker.client.DockerClient,
-    ensureconda_container,
+    ensureconda_python_container,
     environment,
     expected_status,
 ):
@@ -209,7 +215,7 @@ def test_non_existent_channel(
         raise pytest.skip("Docker not available")
 
     container_inst: docker.models.containers.Container = docker_client.containers.run(
-        ensureconda_container,
+        ensureconda_python_container,
         detach=True,
         command=["ensureconda", "--conda-exe", "--no-micromamba"],
         environment=environment,
