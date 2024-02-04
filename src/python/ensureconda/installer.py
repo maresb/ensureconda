@@ -53,14 +53,16 @@ def extract_files_from_conda_package(
 
 
 def install_conda_exe() -> Optional[Path]:
-    url = "https://api.anaconda.org/package/conda-forge/conda-standalone/files"
+    channel = os.environ.get("ENSURECONDA_CONDA_STANDALONE_CHANNEL", "anaconda")
+    url = f"https://api.anaconda.org/package/{channel}/conda-standalone/files"
     resp = request_url_with_retry(url)
     subdir = platform_subdir()
 
     candidates = []
     for file_info in resp.json():
         if file_info["attrs"]["subdir"] == subdir:
-            candidates.append(file_info["attrs"])
+            info = {**file_info, **file_info["attrs"]}
+            candidates.append(info)
 
     candidates.sort(
         key=lambda attrs: (
@@ -71,7 +73,7 @@ def install_conda_exe() -> Optional[Path]:
     )
 
     chosen = candidates[-1]
-    resp = request_url_with_retry(chosen["source_url"])
+    resp = request_url_with_retry("https:" + chosen["download_url"])
 
     tarball = io.BytesIO(resp.content)
 

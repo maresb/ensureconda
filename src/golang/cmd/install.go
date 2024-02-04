@@ -76,7 +76,12 @@ func (a AnacondaPkgAttrs) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func InstallCondaStandalone() (string, error) {
 	// Get the most recent conda-standalone
 	subdir := PlatformSubdir()
-	const url = "https://api.anaconda.org/package/conda-forge/conda-standalone/files"
+	channel := os.Getenv("ENSURECONDA_CONDA_STANDALONE_CHANNEL")
+	if channel == "" {
+		channel = "anaconda"
+	}
+	url := fmt.Sprintf("https://api.anaconda.org/package/%s/conda-standalone/files", channel)
+
 	resp, err := http.Get(url)
 	if err != nil {
 		panic(err)
