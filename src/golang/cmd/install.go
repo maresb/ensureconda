@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"archive/tar"
+	"archive/zip"
+	"bytes"
 	"compress/bzip2"
 	"encoding/json"
 	"errors"
@@ -13,12 +15,14 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/flowchartsman/retry"
 	"github.com/gofrs/flock"
 	"github.com/hashicorp/go-version"
+	"github.com/klauspost/compress/zstd"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -113,7 +117,7 @@ func InstallCondaStandalone() (string, error) {
 	chosen := candidates[len(candidates)-1]
 
 	downloadUrl := "https:" + chosen.DownloadUrl
-	installedExe, err := downloadAndUnpackCondaTarBz2(
+	installedExe, err := downloadAndUnpackCondaArchive(
 		downloadUrl, map[string]string{
 			"standalone_conda/conda.exe": targetExeFilename("conda_standalone"),
 		})
@@ -121,23 +125,62 @@ func InstallCondaStandalone() (string, error) {
 	return installedExe, err
 }
 
-func downloadAndUnpackCondaTarBz2(
-	url string,
-	fileNameMap map[string]string) (string, error) {
+func downloadAndUnpackCondaArchive(url string, fileNameMap map[string]string) (string, error) {
+	if !strings.HasSuffix(url, ".tar.bz2") && !strings.HasSuffix(url, ".conda") {
+		return "", errors.New("unsupported file format")
+	}
+
 	resp, err := http.Get(url)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	defer resp.Body.Close()
 
-	bzf := bzip2.NewReader(resp.Body)
-	tarReader := tar.NewReader(bzf)
-	file, err := extractTarFiles(tarReader, fileNameMap)
-	return file, err
+	if strings.HasSuffix(url, ".tar.bz2") {
+		bzf := bzip2.NewReader(resp.Body)
+		tarReader := tar.NewReader(bzf)
+		file, err := extractTarFiles(tarReader, fileNameMap)
+		return file, err
+	} else if strings.HasSuffix(url, ".conda") {
+		// Read the response body into a byte slice
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return "", err
+		}
+
+		// Create a reader from the byte slice
+		byteReader := bytes.NewReader(body)
+
+		zipReader, err := zip.NewReader(byteReader, int64(len(body)))
+		if err != nil {
+			return "", err
+		}
+
+		for _, f := range zipReader.File {
+			if strings.HasSuffix(f.Name, ".tar.zst") {
+				rc, err := f.Open()
+				if err != nil {
+					return "", err
+				}
+				defer rc.Close()
+
+				zstReader, err := zstd.NewReader(rc)
+				if err != nil {
+					return "", err
+				}
+				defer zstReader.Close()
+
+				tarReader := tar.NewReader(zstReader)
+				file, err := extractTarFiles(tarReader, fileNameMap)
+				return file, err
+			}
+		}
+	}
+	return "", errors.New("unexpected error in downloadAndUnpackCondaTarBz2")
 }
 
 func installMicromamba(url string) (string, error) {
-	installedExe, err := downloadAndUnpackCondaTarBz2(
+	installedExe, err := downloadAndUnpackCondaArchive(
 		url, map[string]string{
 			"Library/bin/micromamba.exe": targetExeFilename("micromamba"),
 			"bin/micromamba":             targetExeFilename("micromamba"),
