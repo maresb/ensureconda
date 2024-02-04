@@ -57,12 +57,12 @@ def ensureconda_python_container_full(
 ):
     if can_i_docker:
         test_root = pathlib.Path(__file__).parent
-        root = test_root.parent
+        src_root = test_root.parent
         image, logs = docker_client.images.build(
             path=str(pathlib.Path(__file__).parent.parent),
             tag="ensureconda:test-full",
             dockerfile=str(
-                (test_root / "docker-full" / "Dockerfile").relative_to(root)
+                (test_root / "docker-full" / "Dockerfile").relative_to(src_root)
             ),
         )
         return image
