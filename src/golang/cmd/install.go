@@ -127,7 +127,7 @@ func InstallCondaStandalone() (string, error) {
 
 func downloadAndUnpackCondaArchive(url string, fileNameMap map[string]string) (string, error) {
 	if !strings.HasSuffix(url, ".tar.bz2") && !strings.HasSuffix(url, ".conda") {
-		return "", errors.New("unsupported file format")
+		return "", errors.New("unsupported file format " + url)
 	}
 
 	resp, err := http.Get(url)
