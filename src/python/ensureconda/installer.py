@@ -101,8 +101,20 @@ def stream_conda_executable(url: str) -> Path:
         raise RuntimeError("Could not find conda.exe in the conda-standalone package")
 
 
-def install_conda_exe() -> Optional[Path]:
+def get_channel_name() -> str:
     channel = os.environ.get("ENSURECONDA_CONDA_STANDALONE_CHANNEL", "anaconda")
+    # Raise an error if the channel name contains any non-alphnumeric characters
+    # besides - or _
+    if not channel.replace("-", "").replace("_", "").isalnum():
+        raise ValueError(
+            f"Invalid channel name {channel}. Channel names must be alphanumeric"
+            " and may contain hyphens and underscores."
+        )
+    return channel
+
+
+def install_conda_exe() -> Optional[Path]:
+    channel = get_channel_name()
     url = f"https://api.anaconda.org/package/{channel}/conda-standalone/files"
     resp = request_url_with_retry(url)
     subdir = platform_subdir()

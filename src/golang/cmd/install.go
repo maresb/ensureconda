@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -84,12 +85,25 @@ func (a AnacondaPkgs) Less(i, j int) bool {
 }
 func (a AnacondaPkgs) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
-func InstallCondaStandalone() (string, error) {
-	// Get the most recent conda-standalone
-	subdir := PlatformSubdir()
+func getChannelName() (string, error) {
 	channel := os.Getenv("ENSURECONDA_CONDA_STANDALONE_CHANNEL")
 	if channel == "" {
 		channel = "anaconda"
+	}
+	validChannelName := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	if !validChannelName.MatchString(channel) {
+		return "", fmt.Errorf("invalid channel name %s. Channel names must be alphanumeric and may contain hyphens and underscores", channel)
+	}
+
+	return channel, nil
+}
+
+func InstallCondaStandalone() (string, error) {
+	// Get the most recent conda-standalone
+	subdir := PlatformSubdir()
+	channel, err := getChannelName()
+	if err != nil {
+		return "", err
 	}
 	url := fmt.Sprintf("https://api.anaconda.org/package/%s/conda-standalone/files", channel)
 
