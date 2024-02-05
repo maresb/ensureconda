@@ -143,7 +143,7 @@ def install_conda_exe() -> Optional[Path]:
 def install_micromamba() -> Optional[Path]:
     """Install micromamba into the installation"""
     subdir = platform_subdir()
-    url = f"https://micromamba.snakepit.net/api/micromamba/{subdir}/latest"
+    url = f"https://micro.mamba.pm/api/micromamba/{subdir}/latest"
     resp = request_url_with_retry(url)
 
     tarball = io.BytesIO(resp.content)
