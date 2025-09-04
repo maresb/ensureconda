@@ -35,6 +35,23 @@ dependencies = [
 ]
 dynamic = ["version"]
 
+[project.optional-dependencies]
+dev = [
+    "black",
+    "build",
+    "coverage",
+    "docker",
+    "flake8",
+    "isort",
+    "mypy",
+    "pip",
+    "pre-commit",
+    "pytest",
+    "types-click",
+    "types-filelock",
+    "types-requests",
+]
+
 [project.urls]
 Homepage = "https://github.com/conda-incubator/ensureconda"
 
@@ -65,6 +82,7 @@ packages = ["src/python/ensureconda"]
 [tool.pytest]
 flake8-max-line-length = 105
 flake8-ignore = ["docs/*", "ALL"]
+addopts = "-vvv"
 
 [tool.isort]
 profile = "black"
