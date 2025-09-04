@@ -70,6 +70,6 @@ jobs:
 
       - name: Run tests
         run: |
-          coverage run --parallel-mode -m pytest -vv
+          coverage run --parallel-mode -m pytest -vv test/
           coverage combine --append
           coverage report -m
