@@ -105,6 +105,25 @@ func InstallCondaStandalone() (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	candidates, err := computeCandidates(channel, subdir)
+	if err != nil {
+		return "", err
+	}
+	chosen := candidates[len(candidates)-1]
+
+	downloadUrl := "https:" + chosen.DownloadUrl
+	installedExe, err := downloadAndUnpackArchive(
+		downloadUrl, map[string]string{
+			"standalone_conda/conda.exe": targetExeFilename("conda_standalone"),
+		})
+
+	return installedExe, err
+}
+
+// computeCandidates returns the sorted list of available conda-standalone
+// packages for the given channel and subdir (ascending by version/build/timestamp).
+func computeCandidates(channel string, subdir string) ([]AnacondaPkg, error) {
 	url := fmt.Sprintf("https://api.anaconda.org/package/%s/conda-standalone/files", channel)
 
 	resp, err := http.Get(url)
@@ -134,17 +153,9 @@ func InstallCondaStandalone() (string, error) {
 	sort.Sort(AnacondaPkgs(candidates))
 
 	if len(candidates) == 0 {
-		return "", errors.New("No conda-standalone found for " + subdir)
+		return nil, fmt.Errorf("No conda-standalone found for %s", subdir)
 	}
-	chosen := candidates[len(candidates)-1]
-
-	downloadUrl := "https:" + chosen.DownloadUrl
-	installedExe, err := downloadAndUnpackArchive(
-		downloadUrl, map[string]string{
-			"standalone_conda/conda.exe": targetExeFilename("conda_standalone"),
-		})
-
-	return installedExe, err
+	return candidates, nil
 }
 
 func inferArchiveTypeFromUrl(url string) ArchiveType {
