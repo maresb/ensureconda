@@ -9,7 +9,7 @@ import time
 import uuid
 from contextlib import closing
 from pathlib import Path
-from typing import IO, Iterator, NamedTuple, Optional, Union
+from typing import IO, Any, Dict, Iterator, List, NamedTuple, Optional, Union
 
 import filelock
 import requests
@@ -191,12 +191,22 @@ def install_conda_exe() -> Optional[Path]:
             # File is too old or has a weird timestamp, continue to download a new version
 
         channel = get_channel_name()
-        url = f"https://api.anaconda.org/package/{channel}/conda-standalone/files"
-        resp = request_url_with_retry(url)
-        subdir = platform_subdir()
+        candidates = compute_candidates(channel, platform_subdir())
+        chosen = candidates[-1]
+        url = "https:" + chosen.download_url
+        path_to_written_executable = stream_conda_executable(url)
+        return path_to_written_executable
+
+
+def compute_candidates(channel: str, subdir: str) -> List[AnacondaPkg]:
+    """Compute the candidates for the conda-standalone package"""
+
+    url = f"https://api.anaconda.org/package/{channel}/conda-standalone/files"
+    resp = request_url_with_retry(url)
+    api_response_data: List[Dict[str, Any]] = resp.json()
 
     candidates = []
-    for file_info in resp.json():
+    for file_info in api_response_data:
         info_attrs = AnacondaPkgAttr(
             subdir=file_info["attrs"]["subdir"],
             build_number=file_info["attrs"]["build_number"],
@@ -221,11 +231,7 @@ def install_conda_exe() -> Optional[Path]:
     )
     if len(candidates) == 0:
         raise RuntimeError(f"No conda-standalone package found for {subdir}")
-
-    chosen = candidates[-1]
-    url = "https:" + chosen.download_url
-    path_to_written_executable = stream_conda_executable(url)
-    return path_to_written_executable
+    return candidates
 
 
 def install_micromamba() -> Optional[Path]:
