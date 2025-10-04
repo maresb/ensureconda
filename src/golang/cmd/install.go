@@ -65,6 +65,12 @@ const (
 	CondaArchive
 )
 
+// If the conda executable is older than this, it will be redownloaded
+const redownloadWhenOlder = 24 * time.Hour
+
+// If the age is below this negative tolerance, consider timestamp invalid and redownload
+const negativeAgeTolerance = -60 * time.Second
+
 func (a AnacondaPkgs) Len() int { return len(a) }
 func (a AnacondaPkgs) Less(i, j int) bool {
 	versioni, _ := version.NewVersion(a[i].Version)
@@ -106,19 +112,48 @@ func InstallCondaStandalone() (string, error) {
 		return "", err
 	}
 
+	// Ensure site path exists before locking
+	_ = os.MkdirAll(sitePath(), 0700)
+
+	// Lock the install to prevent concurrent downloads, similar to Python implementation
+	lockPath := filepath.Join(sitePath(), "conda_exe_install.lock")
+	fileLock := flock.New(lockPath)
+
+	// Block until we acquire the lock (mimics Python's lock_with_feedback behavior)
+	log.WithFields(log.Fields{"lockPath": lockPath}).Info("acquiring conda download lock")
+	if err := fileLock.Lock(); err != nil {
+		return "", fmt.Errorf("acquiring conda download lock: %w", err)
+	}
+	defer func() { _ = fileLock.Unlock() }()
+	log.WithFields(log.Fields{"lockPath": lockPath}).Info("acquired conda download lock")
+
+	// Check if already installed and fresh
+	target := targetExeFilename("conda_standalone")
+	if st, statErr := os.Stat(target); statErr == nil {
+		age := time.Since(st.ModTime())
+		if age < redownloadWhenOlder && age > negativeAgeTolerance {
+			return target, nil
+		}
+	}
+
+	// Download and install
 	candidates, err := computeCandidates(channel, subdir)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("listing conda-standalone candidates: %w", err)
 	}
 	chosen := candidates[len(candidates)-1]
 
 	downloadUrl := "https:" + chosen.DownloadUrl
+	log.WithFields(log.Fields{"url": downloadUrl}).Info("downloading conda-standalone")
 	installedExe, err := downloadAndUnpackArchive(
 		downloadUrl, map[string]string{
-			"standalone_conda/conda.exe": targetExeFilename("conda_standalone"),
+			"standalone_conda/conda.exe": target,
 		})
 
-	return installedExe, err
+	if err != nil {
+		return "", fmt.Errorf("downloading or unpacking conda-standalone: %w", err)
+	}
+	return installedExe, nil
 }
 
 // computeCandidates returns the sorted list of available conda-standalone
@@ -128,20 +163,19 @@ func computeCandidates(channel string, subdir string) ([]AnacondaPkg, error) {
 
 	resp, err := http.Get(url)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("GET candidates: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
-
 	if err != nil {
-		panic(err.Error())
+		return nil, fmt.Errorf("read candidates response: %w", err)
 	}
 
 	var data []AnacondaPkg
 	err = json.Unmarshal(body, &data)
 	if err != nil {
-		panic(err.Error())
+		return nil, fmt.Errorf("unmarshal candidates: %w", err)
 	}
 
 	var candidates = make([]AnacondaPkg, 0)
