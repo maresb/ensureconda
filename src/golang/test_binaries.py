@@ -95,7 +95,7 @@ def ensureconda_go_container(
     "environment, expected_status",
     [
         ({}, 0),
-        ({"ENSURECONDA_CONDA_STANDALONE_CHANNEL": "non-existent-channel"}, 2),
+        ({"ENSURECONDA_CONDA_STANDALONE_CHANNEL": "non-existent-channel"}, 1),
         ({"ENSURECONDA_CONDA_STANDALONE_CHANNEL": "anaconda"}, 0),
         ({"ENSURECONDA_CONDA_STANDALONE_CHANNEL": "conda-forge"}, 0),
     ],

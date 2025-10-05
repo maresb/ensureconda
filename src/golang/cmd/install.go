@@ -5,12 +5,9 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/bzip2"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,6 +19,7 @@ import (
 
 	pep440 "github.com/aquasecurity/go-pep440-version"
 	"github.com/flowchartsman/retry"
+	"github.com/go-resty/resty/v2"
 	"github.com/gofrs/flock"
 	"github.com/klauspost/compress/zstd"
 	log "github.com/sirupsen/logrus"
@@ -170,21 +168,14 @@ func InstallCondaStandalone() (string, error) {
 func computeCandidates(channel string, subdir string) ([]AnacondaPkg, error) {
 	url := fmt.Sprintf("https://api.anaconda.org/package/%s/conda-standalone/files", channel)
 
-	resp, err := http.Get(url)
+	client := resty.New()
+	var data []AnacondaPkg
+	_, err := client.R().
+		SetResult(&data).
+		Get(url)
+
 	if err != nil {
 		return nil, fmt.Errorf("GET candidates: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read candidates response: %w", err)
-	}
-
-	var data []AnacondaPkg
-	err = json.Unmarshal(body, &data)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal candidates: %w", err)
 	}
 
 	var candidates = make([]AnacondaPkg, 0)
@@ -239,30 +230,32 @@ func downloadAndUnpackArchive(url string, fileNameMap map[string]string) (string
 }
 
 func downloadAndUnpackTarBz2(url string, fileNameMap map[string]string) (string, error) {
-	resp, err := http.Get(url)
+	client := resty.New()
+	resp, err := client.R().
+		SetDoNotParseResponse(true).
+		Get(url)
+
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer resp.RawBody().Close()
 
-	bzf := bzip2.NewReader(resp.Body)
+	bzf := bzip2.NewReader(resp.RawBody())
 	tarReader := tar.NewReader(bzf)
 	file, err := extractTarFiles(tarReader, fileNameMap)
 	return file, err
 }
 
 func downloadAndUnpackConda(url string, fileNameMap map[string]string) (string, error) {
-	resp, err := http.Get(url)
+	client := resty.New()
+	resp, err := client.R().Get(url)
+
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
 
 	// Read the response body into a byte slice
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
+	body := resp.Body()
 
 	byteReader := bytes.NewReader(body)
 
