@@ -154,6 +154,10 @@ def stream_conda_executable(url: str) -> Path:
         for tar, member in stream_conda_component(filename, conda, component="pkg"):
             if member.name == "standalone_conda/conda.exe":
                 fo = tar.extractfile(member)
+                if fo is None:
+                    raise RuntimeError(
+                        f"Could not extract executable {member.name} from {url}!"
+                    )
                 conda_exe = write_executable_from_file_object(fo, dest_filename)
                 return conda_exe
         raise RuntimeError("Could not find conda.exe in the conda-standalone package")
