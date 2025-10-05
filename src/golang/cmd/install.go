@@ -20,9 +20,9 @@ import (
 	"syscall"
 	"time"
 
+	pep440 "github.com/aquasecurity/go-pep440-version"
 	"github.com/flowchartsman/retry"
 	"github.com/gofrs/flock"
-	"github.com/hashicorp/go-version"
 	"github.com/klauspost/compress/zstd"
 	log "github.com/sirupsen/logrus"
 )
@@ -73,21 +73,29 @@ const negativeAgeTolerance = -60 * time.Second
 
 func (a AnacondaPkgs) Len() int { return len(a) }
 func (a AnacondaPkgs) Less(i, j int) bool {
-	versioni, _ := version.NewVersion(a[i].Version)
-	versionj, _ := version.NewVersion(a[j].Version)
-	if versioni.LessThan(versionj) {
-		return true
-	} else if versionj.LessThan(versioni) {
-		return false
-	} else {
-		if a[i].Attrs.BuildNumber < a[j].Attrs.BuildNumber {
-			return true
-		} else if a[j].Attrs.BuildNumber < a[i].Attrs.BuildNumber {
-			return false
-		} else {
-			return a[i].Attrs.Timestamp < a[j].Attrs.Timestamp
-		}
+	// By this point, InstallCondaStandalone has filtered out unparseable versions.
+	// If parsing fails here, treat it as a programmer error.
+	iVer, err := pep440.Parse(a[i].Version)
+	if err != nil {
+		panic(err)
 	}
+	jVer, err := pep440.Parse(a[j].Version)
+	if err != nil {
+		panic(err)
+	}
+	if iVer.LessThan(jVer) {
+		return true
+	}
+	if jVer.LessThan(iVer) {
+		return false
+	}
+	if a[i].BuildNumber < a[j].BuildNumber {
+		return true
+	}
+	if a[j].BuildNumber < a[i].BuildNumber {
+		return false
+	}
+	return a[i].Timestamp < a[j].Timestamp
 }
 func (a AnacondaPkgs) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
@@ -180,16 +188,31 @@ func computeCandidates(channel string, subdir string) ([]AnacondaPkg, error) {
 
 	var candidates = make([]AnacondaPkg, 0)
 	for _, datum := range data {
-		if datum.Attrs.Subdir == subdir {
+		if datum.Attrs.Subdir == subdir &&
+			// Ignore onedir packages as workaround for
+			// <https://github.com/conda/conda-standalone/issues/182>
+			!strings.Contains(datum.Attrs.SourceUrl, "_onedir_") {
 			candidates = append(candidates, datum)
 		}
 	}
-	sort.Sort(AnacondaPkgs(candidates))
 
-	if len(candidates) == 0 {
-		return nil, fmt.Errorf("No conda-standalone found for %s", subdir)
+	// Filter out unparseable versions with a warning, to avoid crashes on new formats
+	filtered := make([]AnacondaPkg, 0, len(candidates))
+	for _, c := range candidates {
+		if _, err := pep440.Parse(c.Version); err != nil {
+			log.WithFields(log.Fields{
+				"version": c.Version,
+				"subdir":  c.Subdir,
+			}).Warn("skipping unparseable conda-standalone version")
+			continue
+		}
+		filtered = append(filtered, c)
 	}
-	return candidates, nil
+	if len(filtered) == 0 {
+		return nil, fmt.Errorf("no parseable conda-standalone versions found for %s", subdir)
+	}
+	sort.Sort(AnacondaPkgs(filtered))
+	return filtered, nil
 }
 
 func inferArchiveTypeFromUrl(url string) ArchiveType {

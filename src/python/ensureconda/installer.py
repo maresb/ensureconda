@@ -207,26 +207,20 @@ def compute_candidates(channel: str, subdir: str) -> List[AnacondaPkg]:
 
     candidates = []
     for file_info in api_response_data:
-        info_attrs = AnacondaPkgAttr(
-            subdir=file_info["attrs"]["subdir"],
-            build_number=file_info["attrs"]["build_number"],
-            timestamp=file_info["attrs"]["timestamp"],
-        )
-        info = AnacondaPkg(
-            size=file_info["size"],
-            attrs=info_attrs,
-            type=file_info["type"],
-            version=file_info["version"],
-            download_url=file_info["download_url"],
-        )
-        if info.attrs.subdir == subdir:
-            candidates.append(info)
+        if (
+            file_info["attrs"]["subdir"] == subdir
+            and
+            # Ignore onedir packages as workaround for
+            # <https://github.com/conda/conda-standalone/issues/182>
+            "_onedir_" not in file_info["attrs"]["source_url"]
+        ):
+            candidates.append(file_info["attrs"])
 
     candidates.sort(
-        key=lambda info: (
-            Version(info.version),
-            info.attrs.build_number,
-            info.attrs.timestamp,
+        key=lambda attrs: (
+            Version(attrs["version"]),
+            attrs["build_number"],
+            attrs["timestamp"],
         )
     )
     if len(candidates) == 0:
