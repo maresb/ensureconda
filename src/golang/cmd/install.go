@@ -45,6 +45,7 @@ type AnacondaPkgAttr struct {
 	Subdir      string `json:"subdir"`
 	BuildNumber int32  `json:"build_number"`
 	Timestamp   uint64 `json:"timestamp"`
+	SourceUrl   string `json:"source_url"`
 }
 
 type AnacondaPkg struct {
@@ -89,13 +90,13 @@ func (a AnacondaPkgs) Less(i, j int) bool {
 	if jVer.LessThan(iVer) {
 		return false
 	}
-	if a[i].BuildNumber < a[j].BuildNumber {
+	if a[i].Attrs.BuildNumber < a[j].Attrs.BuildNumber {
 		return true
 	}
-	if a[j].BuildNumber < a[i].BuildNumber {
+	if a[j].Attrs.BuildNumber < a[i].Attrs.BuildNumber {
 		return false
 	}
-	return a[i].Timestamp < a[j].Timestamp
+	return a[i].Attrs.Timestamp < a[j].Attrs.Timestamp
 }
 func (a AnacondaPkgs) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
@@ -202,7 +203,7 @@ func computeCandidates(channel string, subdir string) ([]AnacondaPkg, error) {
 		if _, err := pep440.Parse(c.Version); err != nil {
 			log.WithFields(log.Fields{
 				"version": c.Version,
-				"subdir":  c.Subdir,
+				"subdir":  c.Attrs.Subdir,
 			}).Warn("skipping unparseable conda-standalone version")
 			continue
 		}
