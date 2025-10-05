@@ -31,16 +31,17 @@ def can_i_docker(in_github_actions, platform):
 
 
 @pytest.fixture(scope="session")
-def docker_client(can_i_docker) -> docker.client.DockerClient:
+def docker_client(can_i_docker) -> Optional[docker.client.DockerClient]:
     if can_i_docker:
         return docker.from_env()
+    return None
 
 
 @pytest.fixture(scope="session")
 def ensureconda_python_container(
-    can_i_docker, docker_client: docker.client.DockerClient
+    can_i_docker, docker_client: Optional[docker.client.DockerClient]
 ):
-    if can_i_docker:
+    if can_i_docker and docker_client is not None:
         test_root = pathlib.Path(__file__).parent
         root = test_root.parent
         image, logs = docker_client.images.build(
@@ -55,9 +56,9 @@ def ensureconda_python_container(
 
 @pytest.fixture(scope="session")
 def ensureconda_python_container_full(
-    can_i_docker, docker_client: docker.client.DockerClient
+    can_i_docker, docker_client: Optional[docker.client.DockerClient]
 ):
-    if can_i_docker:
+    if can_i_docker and docker_client is not None:
         test_root = pathlib.Path(__file__).parent
         src_root = test_root.parent
         image, logs = docker_client.images.build(

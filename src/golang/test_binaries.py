@@ -1,10 +1,11 @@
 import os
 import pathlib
-import shutil
 import subprocess
 import sys
+from typing import Optional
 
 import docker
+import docker.models.containers
 import pytest
 
 
@@ -66,14 +67,17 @@ def can_i_docker(in_github_actions, platform):
 
 
 @pytest.fixture(scope="session")
-def docker_client(can_i_docker) -> docker.client.DockerClient:
+def docker_client(can_i_docker) -> Optional[docker.client.DockerClient]:
     if can_i_docker:
         return docker.from_env()
+    return None
 
 
 @pytest.fixture(scope="session")
-def ensureconda_go_container(can_i_docker, docker_client: docker.client.DockerClient):
-    if can_i_docker:
+def ensureconda_go_container(
+    can_i_docker, docker_client: Optional[docker.client.DockerClient]
+):
+    if can_i_docker and docker_client is not None:
         test_root = pathlib.Path(__file__).parent
         src_root = test_root.parent
         proj_root = src_root.parent
@@ -104,7 +108,7 @@ def test_non_existent_channel(
     environment,
     expected_status,
 ):
-    if not can_i_docker:
+    if not can_i_docker or docker_client is None:
         raise pytest.skip("Docker not available")
 
     container_inst: docker.models.containers.Container = docker_client.containers.run(
