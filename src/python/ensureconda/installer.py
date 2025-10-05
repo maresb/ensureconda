@@ -35,9 +35,9 @@ class AnacondaPkgAttr(NamedTuple):
     """
 
     subdir: str
+    build: str
     build_number: int
     timestamp: int
-    source_url: str
 
 
 class AnacondaPkg(NamedTuple):
@@ -210,9 +210,9 @@ def compute_candidates(channel: str, subdir: str) -> List[AnacondaPkg]:
     for file_info in api_response_data:
         info_attrs = AnacondaPkgAttr(
             subdir=file_info["attrs"]["subdir"],
+            build=file_info["attrs"]["build"],
             build_number=file_info["attrs"]["build_number"],
             timestamp=file_info["attrs"]["timestamp"],
-            source_url=file_info["attrs"]["source_url"],
         )
         info = AnacondaPkg(
             size=file_info["size"],
@@ -226,7 +226,7 @@ def compute_candidates(channel: str, subdir: str) -> List[AnacondaPkg]:
             and
             # Ignore onedir packages as workaround for
             # <https://github.com/conda/conda-standalone/issues/182>
-            "_onedir_" not in info.attrs.source_url
+            "_onedir_" not in info.attrs.build
         ):
             candidates.append(info)
 

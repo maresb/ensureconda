@@ -43,9 +43,9 @@ func InstallMicromamba() (string, error) {
 
 type AnacondaPkgAttr struct {
 	Subdir      string `json:"subdir"`
+	Build       string `json:"build"`
 	BuildNumber int32  `json:"build_number"`
 	Timestamp   uint64 `json:"timestamp"`
-	SourceUrl   string `json:"source_url"`
 }
 
 type AnacondaPkg struct {
@@ -192,7 +192,7 @@ func computeCandidates(channel string, subdir string) ([]AnacondaPkg, error) {
 		if datum.Attrs.Subdir == subdir &&
 			// Ignore onedir packages as workaround for
 			// <https://github.com/conda/conda-standalone/issues/182>
-			!strings.Contains(datum.Attrs.SourceUrl, "_onedir_") {
+			!strings.Contains(datum.Attrs.Build, "_onedir_") {
 			candidates = append(candidates, datum)
 		}
 	}
