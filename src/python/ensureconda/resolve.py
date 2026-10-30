@@ -98,7 +98,13 @@ def platform_subdir() -> str:
 
 
 def subdir_for(sys_platform: str, machine: str, bits: int) -> str:
-    """Map a platform to its conda subdir, following conda.base.context."""
+    """Map a platform to its conda subdir.
+
+    This follows conda's own detection, except on Windows, where the machine
+    comes from platform.machine() and so reports the hardware. Windows on ARM
+    therefore selects win-arm64 builds even from an x86-64 Python; they run
+    natively. conda goes by the Python build there.
+    """
     platform_map = {
         "linux2": "linux",
         "linux": "linux",
@@ -128,16 +134,14 @@ def subdir_for(sys_platform: str, machine: str, bits: int) -> str:
     plat = platform_map.get(sys_platform)
     if plat is None:
         raise unsupported()
-    if plat == "win":
-        # Unlike conda, keep using x86 builds on Windows on ARM, where they run
-        # under emulation: conda-forge publishes no win-arm64 conda-standalone.
-        return f"win-{bits}"
     machine = machine.lower()
     if machine in non_x86_machines:
         return f"{plat}-{machine}"
     if plat == "zos":
         return "zos-z"
-    if machine in x86_machines:
+    if machine in x86_machines or plat == "win":
+        # Windows names x86 machines AMD64 or x86. Keep the x86 subdir for
+        # anything else it might report, as before.
         return f"{plat}-{bits}"
     raise unsupported()
 

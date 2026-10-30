@@ -18,7 +18,7 @@ func TestPlatformSubdir(t *testing.T) {
 		{"darwin", "arm64", "osx-arm64"},
 		{"windows", "386", "win-32"},
 		{"windows", "amd64", "win-64"},
-		{"windows", "arm64", "win-64"},
+		{"windows", "arm64", "win-arm64"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.goos+"/"+tt.goarch, func(t *testing.T) {

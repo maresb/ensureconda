@@ -17,8 +17,7 @@ from ensureconda.resolve import subdir_for
         ("darwin", "arm64", 64, "osx-arm64"),
         ("win32", "AMD64", 64, "win-64"),
         ("win32", "x86", 32, "win-32"),
-        # Windows on ARM keeps using x64 builds; see subdir_for.
-        ("win32", "ARM64", 64, "win-64"),
+        ("win32", "ARM64", 64, "win-arm64"),
         ("zos", "", 64, "zos-z"),
     ],
 )
