@@ -1,11 +1,13 @@
 import subprocess
 from pathlib import Path
+from typing import Any, Optional
 
 import pytest
 import requests
+from click.testing import CliRunner
 from packaging.version import InvalidVersion, Version
 
-from ensureconda import api
+from ensureconda import api, cli
 
 BROKEN_MAMBA = Path("broken", "mamba")
 WORKING_MICROMAMBA = Path("working", "micromamba")
@@ -113,3 +115,19 @@ def test_other_micromamba_failures_propagate(
 
     with pytest.raises(requests.HTTPError):
         api.ensureconda(no_install=False, conda=conda, conda_exe=conda_exe)
+
+
+def test_cli_reports_download_failure_without_traceback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def ensureconda(**kwargs: Any) -> Optional[Path]:
+        if kwargs["no_install"]:
+            return None
+        raise http_error(404)
+
+    monkeypatch.setattr(cli, "ensureconda", ensureconda)
+
+    result = CliRunner().invoke(cli.ensureconda_cli, ["--no-conda", "--no-conda-exe"])
+
+    assert result.exit_code == 1
+    assert "Error: download failed: 404 Error" in result.output

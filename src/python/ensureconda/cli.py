@@ -3,6 +3,7 @@ import time
 from typing import Any, Optional, Union
 
 import click
+import requests
 from packaging.version import Version
 
 from ensureconda.api import ensureconda
@@ -81,15 +82,20 @@ def ensureconda_cli(
         min_conda_version=min_conda_version,
     )
     if not exe and not no_install:
-        exe = ensureconda(
-            mamba=mamba,
-            micromamba=micromamba,
-            conda=conda,
-            conda_exe=conda_exe,
-            no_install=False,
-            min_mamba_version=min_mamba_version,
-            min_conda_version=min_conda_version,
-        )
+        try:
+            exe = ensureconda(
+                mamba=mamba,
+                micromamba=micromamba,
+                conda=conda,
+                conda_exe=conda_exe,
+                no_install=False,
+                min_mamba_version=min_mamba_version,
+                min_conda_version=min_conda_version,
+            )
+        except requests.RequestException as error:
+            # Each attempt has already been reported; end with one line
+            # instead of a traceback.
+            raise click.ClickException(f"download failed: {error}")
     if exe:
         print("Found compatible executable", file=sys.stderr, flush=True)
         # silly thing to force correct output order
