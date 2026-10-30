@@ -181,14 +181,15 @@ def test_compute_candidates_skips_broken_and_invalid_versions(
             # conda-forge moves builds it marks as broken to the "broken" label.
             file_info("3.0", labels=["broken"]),
             file_info("not a version", labels=["main"]),
-            # Entries without labels are kept.
+            # Entries without labels, or with null labels, are kept.
             file_info("2.0"),
+            file_info("2.1", labels=None),
         ],
     )
 
     candidates = installer.compute_candidates("conda-forge", "linux-64")
 
-    assert [candidate.version for candidate in candidates] == ["1.0", "2.0"]
+    assert [candidate.version for candidate in candidates] == ["1.0", "2.0", "2.1"]
     assert "Skipping conda-standalone not a version" in capsys.readouterr().err
 
 

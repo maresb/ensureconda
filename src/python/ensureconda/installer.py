@@ -336,13 +336,15 @@ def compute_candidates(channel: str, subdir: str) -> List[AnacondaPkg]:
             # Older conda-forge files lack a SHA-256 digest.
             sha256=file_info.get("sha256"),
         )
+        # Builds marked as broken lose the "main" label. Keep entries whose
+        # labels are missing or null, as from a listing that omits them.
+        labels = file_info.get("labels")
         if not (
             info.attrs.subdir == subdir
             # Ignore onedir packages as workaround for
             # <https://github.com/conda/conda-standalone/issues/182>
             and "_onedir_" not in info.attrs.build
-            # Builds marked as broken lose the "main" label.
-            and "main" in file_info.get("labels", ["main"])
+            and (labels is None or "main" in labels)
         ):
             continue
         try:
