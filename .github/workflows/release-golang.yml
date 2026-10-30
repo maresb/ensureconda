@@ -5,9 +5,6 @@ on:
     # Not `created`, which never fires for releases published from drafts.
     types:
       - published
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
@@ -41,7 +38,6 @@ jobs:
         run: echo BUILD_TIME=$(date) >> ${GITHUB_ENV}
 
       - uses: wangyoucao577/go-release-action@279495102627de7960cbc33434ab01a12bae144b  # v1.55
-        if: ${{ github.event_name == 'release' }}
         env:
           # Native linux/amd64 builds otherwise link against glibc.
           CGO_ENABLED: "0"
