@@ -78,17 +78,32 @@ def test_missing_micromamba_build_falls_back_to_conda_standalone(
     monkeypatch.setattr(api, "install_conda_exe", lambda: conda_standalone)
 
     assert api.ensureconda(no_install=False) == conda_standalone
-    assert "micromamba is not available" in capsys.readouterr().err
+    assert "trying conda or conda-standalone instead" in capsys.readouterr().err
+
+
+@pytest.mark.usefixtures("nothing_installed")
+def test_missing_micromamba_build_falls_back_to_conda(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def install_micromamba() -> Path:
+        raise http_error(404)
+
+    conda = Path("opt", "conda", "bin", "conda")
+    monkeypatch.setattr(api, "install_micromamba", install_micromamba)
+    monkeypatch.setattr(api, "conda_executables", lambda: iter([conda]))
+
+    assert api.ensureconda(no_install=False, conda_exe=False) == conda
+    assert "trying conda instead" in capsys.readouterr().err
 
 
 @pytest.mark.usefixtures("nothing_installed")
 @pytest.mark.parametrize(
-    "status, conda_exe",
-    [(404, False), (500, True), (403, True)],
-    ids=["404-without-conda-exe", "500", "403"],
+    "status, conda, conda_exe",
+    [(404, False, False), (500, True, True), (403, True, True)],
+    ids=["404-with-nothing-left-to-try", "500", "403"],
 )
 def test_other_micromamba_failures_propagate(
-    status: int, conda_exe: bool, monkeypatch: pytest.MonkeyPatch
+    status: int, conda: bool, conda_exe: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def install_micromamba() -> Path:
         raise http_error(status)
@@ -97,4 +112,4 @@ def test_other_micromamba_failures_propagate(
     monkeypatch.setattr(api, "install_conda_exe", lambda: Path("unused"))
 
     with pytest.raises(requests.HTTPError):
-        api.ensureconda(no_install=False, conda_exe=conda_exe)
+        api.ensureconda(no_install=False, conda=conda, conda_exe=conda_exe)
