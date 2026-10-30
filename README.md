@@ -49,22 +49,19 @@ Options:
   --mamba / --no-mamba            search for mamba
   --micromamba / --no-micromamba  search for micromamba, install if not
                                   present
-
   --conda / --no-conda            search for conda
   --conda-exe / --no-conda-exe    search for conda.exe / conda-standalone,
                                   install if not present
-
   --no-install                    don't install conda/mamba if no version can
                                   be discovered
-
   --min-conda-version VERSIONNUMBER
                                   minimum version of conda to accept (defaults
                                   to 4.8.2)
-
   --min-mamba-version VERSIONNUMBER
                                   minimum version of mamba/micromamba to
                                   accept (defaults to 0.7.3)
-
+  --json                          print the executable's path, flavor and
+                                  version as JSON
   --help                          Show this message and exit.
 ```
 
