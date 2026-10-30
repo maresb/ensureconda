@@ -1,3 +1,5 @@
+import errno
+import os
 import subprocess
 import sys
 from functools import partial
@@ -327,11 +329,19 @@ def identify(executable: "StrPath") -> CondaExecutable:
     The flavor comes from the file name, as for the executables that
     :func:`ensureconda` finds. For other names it comes from the shape of the
     ``--version`` output instead, which can't distinguish micromamba from
-    mamba 2; both are reported as "micromamba".
+    mamba 2, nor conda from conda-standalone; those are reported as
+    "micromamba" and "conda".
 
-    Raises ValueError if the executable can't be recognized.
+    Raises FileNotFoundError if the executable doesn't exist, PermissionError
+    if it isn't executable, and ValueError if it can't be recognized.
     """
+    path = Path(executable)
+    if not path.is_file():
+        raise FileNotFoundError(errno.ENOENT, "No such executable", str(executable))
+    if not os.access(path, os.X_OK):
+        raise PermissionError(errno.EACCES, "Not an executable file", str(executable))
     flavor = _flavor_from_name(executable) or _flavor_from_output(executable)
     if flavor is None:
         raise ValueError(f"{executable} is not a recognized conda executable")
-    return CondaExecutable(Path(executable), flavor, _probe_version(executable, flavor))
+    version = _known_version(_probe_version(executable, flavor))
+    return CondaExecutable(path, flavor, version)

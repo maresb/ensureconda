@@ -92,8 +92,10 @@ is `None` if `--version` doesn't report one. With a minimum version, the version
 measured by that check is reported, so `--version` runs once per executable.
 
 `identify()` takes the flavor from the file name, or else from the shape of the
-`--version` output, which can't tell micromamba from mamba 2; both are reported
-as `"micromamba"`.
+`--version` output, which can't tell micromamba from mamba 2, nor conda from
+conda-standalone; those are reported as `"micromamba"` and `"conda"`. It raises
+`FileNotFoundError` or `PermissionError` for a path that doesn't exist or isn't
+executable, and `ValueError` for an executable it doesn't recognize.
 
 ### Configuring conda-standalone channel
 

@@ -1,5 +1,6 @@
 import json
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -17,6 +18,14 @@ from ensureconda.api import (
 )
 
 MICROMAMBA = Path("data", "micromamba")
+
+
+def executable_file(path: Path) -> Path:
+    """Create an empty executable file at path."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"")
+    path.chmod(0o755)
+    return path
 
 
 def fake_version_outputs(
@@ -112,20 +121,38 @@ def test_identify(
     output: str,
     flavor: Flavor,
     version: str,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fake_version_outputs(monkeypatch, {Path(path).name: output})
+    executable = executable_file(tmp_path / path)
+    fake_version_outputs(monkeypatch, {executable.name: output})
 
-    assert identify(path) == CondaExecutable(Path(path), flavor, Version(version))
+    assert identify(executable) == CondaExecutable(executable, flavor, Version(version))
 
 
 def test_identify_rejects_unrecognized_executables(
-    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    python = executable_file(tmp_path / "bin" / "python")
     fake_version_outputs(monkeypatch, {"python": "Python 3.13.2\n"})
 
     with pytest.raises(ValueError, match="not a recognized conda executable"):
-        identify("bin/python")
+        identify(python)
+
+
+def test_identify_rejects_missing_and_unexecutable_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = fake_version_outputs(monkeypatch, {"conda": "conda 26.5.2\n"})
+
+    with pytest.raises(FileNotFoundError):
+        identify(tmp_path / "missing" / "conda")
+    if sys.platform != "win32":  # Windows has no execute permission.
+        conda = executable_file(tmp_path / "bin" / "conda")
+        conda.chmod(0o644)
+        with pytest.raises(PermissionError):
+            identify(conda)
+    assert calls == []
 
 
 def test_cli_json(monkeypatch: pytest.MonkeyPatch) -> None:
