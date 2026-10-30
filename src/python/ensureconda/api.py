@@ -2,7 +2,7 @@ import subprocess
 import sys
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, Literal, NamedTuple, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, Dict, Literal, NamedTuple, Optional
 
 import requests
 from packaging.version import InvalidVersion, Version
@@ -86,11 +86,14 @@ _VERSION_PROBES: Dict[str, Callable[["StrPath"], Version]] = {
 
 def _probe_version(executable: "StrPath", flavor: Flavor) -> Optional[Version]:
     try:
-        version = _VERSION_PROBES[flavor](executable)
+        return _VERSION_PROBES[flavor](executable)
     except (subprocess.CalledProcessError, OSError, InvalidVersion, UnicodeDecodeError):
         return None
+
+
+def _known_version(version: Optional[Version]) -> Optional[Version]:
     # The determine_*_version functions return 0.0.0 for unrecognized output.
-    return None if version == Version("0.0.0") else version
+    return None if version is None or version == Version("0.0.0") else version
 
 
 def _flavor_from_name(executable: "StrPath") -> Optional[Flavor]:
@@ -127,6 +130,13 @@ def _flavor_from_output(executable: "StrPath") -> Optional[Flavor]:
     return None
 
 
+class _Found(NamedTuple):
+    path: "StrPath"
+    flavor: Flavor
+    # The version measured by the minimum-version check, if one ran.
+    version: Optional[Version]
+
+
 def _ensureconda(
     *,
     mamba: bool = True,
@@ -136,8 +146,12 @@ def _ensureconda(
     no_install: bool = False,
     min_conda_version: Optional[Version] = None,
     min_mamba_version: Optional[Version] = None,
-) -> "Optional[Tuple[StrPath, Flavor]]":
+) -> Optional[_Found]:
     """Search for, or install, an executable; return it and its flavor."""
+
+    # Versions measured by the minimum-version checks, by executable, so that
+    # callers needn't run `--version` again.
+    measured: Dict[str, Version] = {}
 
     def version_constraint_met(
         executable: "StrPath",
@@ -153,6 +167,7 @@ def _ensureconda(
         except (OSError, InvalidVersion, UnicodeDecodeError) as error:
             reason = str(error)
         else:
+            measured[str(executable)] = version
             return version >= min_version
         # A broken candidate shouldn't prevent finding a working one.
         print(
@@ -177,14 +192,17 @@ def _ensureconda(
         version_fn=determine_micromamba_version,
     )
 
+    def found(executable: "StrPath", flavor: Flavor) -> _Found:
+        return _Found(executable, flavor, measured.get(str(executable)))
+
     if mamba:
         for exe in mamba_executables():
             if exe and mamba_constraints_met(exe):
-                return exe, "mamba"
+                return found(exe, "mamba")
     if micromamba:
         for exe in micromamba_executables():
             if exe and micromamba_constraints_met(exe):
-                return exe, "micromamba"
+                return found(exe, "micromamba")
         if not no_install:
             try:
                 maybe_exe = install_micromamba()
@@ -211,19 +229,19 @@ def _ensureconda(
                 )
                 maybe_exe = None
             if maybe_exe is not None and micromamba_constraints_met(maybe_exe):
-                return maybe_exe, "micromamba"
+                return found(maybe_exe, "micromamba")
     if conda:
         for exe in conda_executables():
             if exe and conda_constraints_met(exe):
-                return exe, "conda"
+                return found(exe, "conda")
     if conda_exe:
         for exe in conda_standalone_executables():
             if exe and conda_constraints_met(exe):
-                return exe, "conda_standalone"
+                return found(exe, "conda_standalone")
         if not no_install:
             maybe_exe = install_conda_exe()
             if maybe_exe is not None and conda_constraints_met(maybe_exe):
-                return maybe_exe, "conda_standalone"
+                return found(maybe_exe, "conda_standalone")
     return None
 
 
@@ -257,7 +275,7 @@ def ensureconda(
 
     Returns the path to a conda executable.
     """
-    found = _ensureconda(
+    result = _ensureconda(
         mamba=mamba,
         micromamba=micromamba,
         conda=conda,
@@ -266,7 +284,7 @@ def ensureconda(
         min_conda_version=min_conda_version,
         min_mamba_version=min_mamba_version,
     )
-    return None if found is None else found[0]
+    return None if result is None else result.path
 
 
 def ensureconda_info(
@@ -283,9 +301,10 @@ def ensureconda_info(
 
     Takes the same arguments and finds the same executable as
     :func:`ensureconda`. Returns its path, its flavor, and its version, or
-    None if nothing suitable was found or installed.
+    None if nothing suitable was found or installed. When a minimum version
+    is set, the version comes from that check, so ``--version`` runs once.
     """
-    found = _ensureconda(
+    result = _ensureconda(
         mamba=mamba,
         micromamba=micromamba,
         conda=conda,
@@ -294,10 +313,12 @@ def ensureconda_info(
         min_conda_version=min_conda_version,
         min_mamba_version=min_mamba_version,
     )
-    if found is None:
+    if result is None:
         return None
-    executable, flavor = found
-    return CondaExecutable(Path(executable), flavor, _probe_version(executable, flavor))
+    version = result.version
+    if version is None:
+        version = _probe_version(result.path, result.flavor)
+    return CondaExecutable(Path(result.path), result.flavor, _known_version(version))
 
 
 def identify(executable: "StrPath") -> CondaExecutable:

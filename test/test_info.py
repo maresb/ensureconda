@@ -80,6 +80,18 @@ def test_ensureconda_still_runs_no_version_check_by_default(
     assert calls == []
 
 
+@pytest.mark.usefixtures("only_micromamba")
+def test_ensureconda_info_reuses_the_minimum_version_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = fake_version_outputs(monkeypatch, {"micromamba": "2.9.0\n"})
+
+    info = ensureconda_info(no_install=True, min_mamba_version=Version("1.0"))
+
+    assert info == CondaExecutable(MICROMAMBA, "micromamba", Version("2.9.0"))
+    assert calls == ["micromamba"]
+
+
 @pytest.mark.parametrize(
     "path, output, flavor, version",
     [
@@ -125,3 +137,14 @@ def test_cli_json(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.exit_code == 0
     # Before click 8.2, the runner's stdout also includes stderr.
     assert json.loads(result.stdout.splitlines()[-1]) == info.to_json()
+
+
+@pytest.mark.usefixtures("only_micromamba")
+def test_cli_json_runs_one_version_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = fake_version_outputs(monkeypatch, {"micromamba": "2.9.0\n"})
+
+    result = CliRunner().invoke(cli.ensureconda_cli, ["--json", "--no-install"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout.splitlines()[-1])["version"] == "2.9.0"
+    assert calls == ["micromamba"]

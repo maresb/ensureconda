@@ -88,9 +88,12 @@ identify("/opt/conda/bin/conda")  # CondaExecutable for a given executable
 
 `ensureconda_info()` accepts the same arguments as `ensureconda()`. The flavor
 is `"mamba"`, `"micromamba"`, `"conda"` or `"conda_standalone"`, and the version
-is `None` if `--version` doesn't report one. `identify()` takes the flavor from
-the file name, or else from the shape of the `--version` output, which can't tell
-micromamba from mamba 2; both are reported as `"micromamba"`.
+is `None` if `--version` doesn't report one. With a minimum version, the version
+measured by that check is reported, so `--version` runs once per executable.
+
+`identify()` takes the flavor from the file name, or else from the shape of the
+`--version` output, which can't tell micromamba from mamba 2; both are reported
+as `"micromamba"`.
 
 ### Configuring conda-standalone channel
 
