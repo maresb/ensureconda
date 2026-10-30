@@ -383,7 +383,8 @@ func extractTarFiles(tarReader *tar.Reader, fileNameMap map[string]string) (stri
 // extractTarFile writes the current entry of tarReader to targetFileName as an
 // executable. It writes to a temporary file and renames it into place while
 // holding a lock on the target, the same lock the Python implementation uses,
-// so that concurrent writers don't interfere.
+// so that concurrent writers don't interfere. The temporary file is removed if
+// anything fails.
 func extractTarFile(header *tar.Header, targetFileName string, tarReader *tar.Reader) error {
 	log.WithFields(log.Fields{
 		"srcPath": header.Name,
@@ -397,7 +398,21 @@ func extractTarFile(header *tar.Header, targetFileName string, tarReader *tar.Re
 	defer func() { _ = fileLock.Unlock() }()
 
 	tmpFileName := targetFileName + ".tmp"
-	file, err := os.OpenFile(tmpFileName, os.O_RDWR|os.O_CREATE|os.O_TRUNC, header.FileInfo().Mode().Perm())
+	err := writeExecutable(tmpFileName, header, tarReader)
+	if err == nil {
+		err = os.Rename(tmpFileName, targetFileName)
+	}
+	if err != nil {
+		// Don't leave a partial executable behind.
+		_ = os.Remove(tmpFileName)
+	}
+	return err
+}
+
+// writeExecutable writes the current entry of tarReader to fileName and marks
+// it executable.
+func writeExecutable(fileName string, header *tar.Header, tarReader *tar.Reader) error {
+	file, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_TRUNC, header.FileInfo().Mode().Perm())
 	if err != nil {
 		return err
 	}
@@ -411,12 +426,9 @@ func extractTarFile(header *tar.Header, targetFileName string, tarReader *tar.Re
 	if n != header.Size {
 		return fmt.Errorf("unexpected bytes written: wrote %d, want %d", n, header.Size)
 	}
-	st, err := os.Stat(tmpFileName)
+	st, err := os.Stat(fileName)
 	if err != nil {
 		return fmt.Errorf("stat temp file: %w", err)
 	}
-	if err := os.Chmod(tmpFileName, st.Mode()|syscall.S_IXUSR); err != nil {
-		return err
-	}
-	return os.Rename(tmpFileName, targetFileName)
+	return os.Chmod(fileName, st.Mode()|syscall.S_IXUSR)
 }
