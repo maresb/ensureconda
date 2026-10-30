@@ -194,11 +194,19 @@ def _ensureconda(
                 not_published = (
                     error.response is not None and error.response.status_code == 404
                 )
-                if not (not_published and conda_exe):
+                remaining = [
+                    name
+                    for enabled, name in [
+                        (conda, "conda"),
+                        (conda_exe, "conda-standalone"),
+                    ]
+                    if enabled
+                ]
+                if not (not_published and remaining):
                     raise
                 print(
                     f"micromamba is not available for this platform ({error}); "
-                    "trying conda-standalone instead",
+                    f"trying {' or '.join(remaining)} instead",
                     file=sys.stderr,
                 )
                 maybe_exe = None
